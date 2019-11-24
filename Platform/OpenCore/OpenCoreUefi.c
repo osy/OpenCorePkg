@@ -505,7 +505,7 @@ OcLoadUefiSupport (
 
   OcReinstallProtocols (Config);
 
-  OcPerformEpidProvisioning ();
+  OcPerformProvisioning ();
 
   AgiExitBs = OcLoadUefiInputSupport (Config);
   //
