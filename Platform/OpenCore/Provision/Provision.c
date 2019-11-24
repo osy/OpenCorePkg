@@ -16,6 +16,7 @@
 #include <Library/MemoryAllocationLib.h>
 #include <Library/PciLib.h>
 #include <Library/HobLib.h>
+#include <Library/IoLib.h>
 #include <Guid/GlobalVariable.h>
 #include <OpenCore.h>
 
@@ -25,6 +26,8 @@
 #include <IndustryStandard/AppleProvisioning.h>
 #include <IndustryStandard/HeciMsg.h>
 #include <IndustryStandard/HeciClientMsg.h>
+
+#define FORCE_PROVISIONING 1
 
 STATIC UINT8 mCurrentMeClientRequestedReceiveMsg;
 STATIC UINT8 mCurrentMeClientCanReceiveMsg;
@@ -533,7 +536,10 @@ SetProvisioningVariable (
   IN UINT32  Value
   )
 {
-#if 1
+#ifdef FORCE_PROVISIONING
+  (VOID) Variable;
+  (VOID) Value;
+#else
   gRT->SetVariable (
     Variable,
     &gEfiGlobalVariableGuid,
@@ -541,9 +547,6 @@ SetProvisioningVariable (
     sizeof (Value),
     &Value
     );
-#else
-  (VOID) Variable;
-  (VOID) Value;
 #endif
 }
 
@@ -792,6 +795,10 @@ NeedsEpidProvisioning (
       &DataSize,
       &Data
       );
+
+#ifdef FORCE_PROVISIONING
+    Data = 0;
+#endif
 
     if (EFI_ERROR (Status) || Data != 1) {
       return EFI_SUCCESS;
