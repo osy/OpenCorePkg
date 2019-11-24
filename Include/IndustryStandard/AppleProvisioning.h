@@ -31,19 +31,21 @@
 
 //
 // E3CC8EC6-81C1-4271-ACBC-DB65086E8DC8
+// This HOB is set on all models in 38317FC0-2795-4DE6-B207-680CA768CFB1 PEI module.
+// Note, that it just uses some higher address in the firmware for the value.
 //
-#define APPLE_PLATFORM_INFO_HOB_GUID \
+#define APPLE_FPF_CONFIGURATION_HOB_GUID \
   { 0xE3CC8EC6, 0x81C1, 0x4271, { 0xAC, 0xBC, 0xDB, 0x65, 0x08, 0x6E, 0x8D, 0xC8 } }
 
 typedef struct {
   EFI_HOB_GENERIC_HEADER      Header;
   EFI_GUID                    Name;
-  BOOLEAN                     FpfProvisioned;
-} APPLE_PLATFORM_INFO_HOB;
+  BOOLEAN                     ShouldProvision;
+} APPLE_FPF_CONFIGURATION_HOB;
 
 extern EFI_GUID gAppleEpidCertificateFileGuid;
 extern EFI_GUID gAppleEpidGroupPublicKeysFileGuid;
-extern EFI_GUID gApplePlatformInfoHobGuid;
+extern EFI_GUID gAppleFpfConfigurationHobGuid;
 
 extern UINT8 gDefaultAppleEpidCertificate[];
 extern UINTN gDefaultAppleEpidCertificateSize;

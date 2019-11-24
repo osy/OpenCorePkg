@@ -60,7 +60,7 @@
   gOcVendorVariableGuid
   gAppleEpidCertificateFileGuid
   gAppleEpidGroupPublicKeysFileGuid
-  gApplePlatformInfoHobGuid
+  gAppleFpfConfigurationHobGuid
   gMePavpProtocolGuid
   gMeFpfProtocolGuid
 

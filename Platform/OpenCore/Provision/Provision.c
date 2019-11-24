@@ -808,20 +808,20 @@ NeedsFpfProvisioning (
   VOID
   )
 {
-  EFI_STATUS               Status;
-  UINT32                   Data;
-  UINTN                    DataSize;
-  APPLE_PLATFORM_INFO_HOB  *Hob;
+  EFI_STATUS                   Status;
+  UINT32                       Data;
+  UINTN                        DataSize;
+  APPLE_FPF_CONFIGURATION_HOB  *Hob;
 
 #if 0
-  Hob = GetFirstGuidHob (&gApplePlatformInfoHobGuid);
+  Hob = GetFirstGuidHob (&gAppleFpfConfigurationHobGuid);
 #else
-  Hob = NULL; // On newer Macs this is not present anyway.
+  Hob = NULL;
 #endif
 
   DEBUG ((DEBUG_INFO, "OC: HOB for FPF is %p\n", Hob));
 
-  if (Hob == NULL || Hob->FpfProvisioned) {
+  if (Hob == NULL || Hob->ShouldProvision) {
     DataSize = sizeof (Data);
     Status = gRT->GetVariable (
       APPLE_FPF_PROVISIONED_VARIABLE_NAME,
