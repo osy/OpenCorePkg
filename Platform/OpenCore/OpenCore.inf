@@ -37,6 +37,8 @@
 [Sources]
   OpenCore.c
   OpenCoreAcpi.c
+  Provision/Epid.c
+  Provision/EpidData.c
   OpenCoreDevProps.c
   OpenCoreKernel.c
   OpenCoreMisc.c
@@ -56,6 +58,10 @@
 
 [Guids]
   gOcVendorVariableGuid
+  gAppleEpidCertificateFileGuid
+  gAppleEpidGroupPublicKeysFileGuid
+  gMeEpidProtocolGuid
+  gMeFpfProtocolGuid
 
 [Protocols]
   gEfiDevicePathProtocolGuid          ## CONSUMES
@@ -64,6 +70,7 @@
   gEfiSimpleFileSystemProtocolGuid    ## CONSUMES
   gOcBootstrapProtocolGuid            ## CONSUMES
   gOcInterfaceProtocolGuid            ## SOMETIMES_CONSUMES
+  gEfiHeciProtocolGuid                ## SOMETIMES_CONSUMES
 
 [LibraryClasses]
   DevicePathLib

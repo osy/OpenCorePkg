@@ -505,6 +505,8 @@ OcLoadUefiSupport (
 
   OcReinstallProtocols (Config);
 
+  OcPerformEpidProvisioning ();
+
   AgiExitBs = OcLoadUefiInputSupport (Config);
   //
   // Setup Apple bootloader specific UEFI features.

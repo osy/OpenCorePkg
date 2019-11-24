@@ -271,4 +271,12 @@ OcMiscUefiQuirksLoaded (
   IN OC_GLOBAL_CONFIG   *Config
   );
 
+/**
+  Load EPID provisioning support.
+**/
+VOID
+OcPerformEpidProvisioning (
+  VOID
+  );
+
 #endif // OPEN_CORE_H
