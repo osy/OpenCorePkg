@@ -1,5 +1,5 @@
 /** @file
-  This protocol provides message definitions for HECI communucation.
+  This header provides message definitions for HECI communucation.
   This header is based on DCMI-HI: DCMI Host Interface Specification:
   https://www.intel.com/content/dam/www/public/us/en/documents/technical-specifications/dcmi-hi-1-0-spec.pdf
 
@@ -266,85 +266,6 @@ typedef union {
   HBM_CLIENT_CONNECTION_RESET_REQUEST  Request;
   HBM_CLIENT_CONNECTION_RESET_RESPONSE Response;
 } HBM_CLIENT_CONNECTION_RESET_BUFFER;
-
-//
-// Select known clients
-//
-
-//
-// FBF6FCF1-96CF-4E2E-A6A6-1BAB8CBE36B1
-//
-#define ME_EPID_PROTOCOL_GUID \
-  { 0xFBF6FCF1, 0x96CF, 0x4E2E, { 0xA6, 0xA6, 0x1B, 0xAB, 0x8C, 0xBE, 0x36, 0xB1 } }
-
-extern EFI_GUID gMeEpidProtocolGuid;
-
-#define EPID_PROVISION_COMMAND 0x10005U
-
-#define EPID_PROVISION_REQUEST_SUBCOMMAND 0x0
-#define EPID_PROVISION_PERFORM_SUBCOMMAND 0x1
-
-#define EPID_CERTIFICATE_SIZE      876U
-#define EPID_GROUP_PUBLIC_KEY_SIZE 392U
-
-//
-// EPID_PROVISION_REQUEST_SUBCOMMAND
-//
-
-typedef struct {
-  UINT32  Command;
-  UINT32  Subcommand;
-  UINT32  Reserved[2];
-} EPID_PROVISION_REQUEST_REQUEST;
-
-typedef struct {
-  UINT32  Command;
-  UINT32  Subcommand;
-  UINT32  Reserved[2];
-  UINT32  Status;
-  UINT32  Key;
-} EPID_PROVISION_REQUEST_RESPONSE;
-
-typedef union {
-  EPID_PROVISION_REQUEST_REQUEST   Request;
-  EPID_PROVISION_REQUEST_RESPONSE  Response;
-} EPID_PROVISION_REQUEST_BUFFER;
-
-#define EPID_STATUS_PROVISIONED    0x00
-#define EPID_STATUS_CAN_PROVISION  0x02
-#define EPID_STATUS_FAIL_PROVISION 0x03
-
-//
-// EPID_PROVISION_PERFORM_SUBCOMMAND
-//
-
-typedef struct {
-  UINT32  Command;
-  UINT32  Subcommand;
-  UINT32  Reserved;
-  UINT32  PayloadSize;
-  UINT8   Certificate[EPID_CERTIFICATE_SIZE];
-  UINT8   PublicKey[EPID_GROUP_PUBLIC_KEY_SIZE];
-} EPID_PROVISION_PERFORM_REQUEST;
-
-typedef struct {
-  UINT32  Command;
-  UINT32  Subcommand;
-  UINT32  Status;
-  UINT32  Reserved;
-} EPID_PROVISION_PERFORM_RESPONSE;
-
-typedef union {
-  EPID_PROVISION_PERFORM_REQUEST   Request;
-  EPID_PROVISION_PERFORM_RESPONSE  Response;
-} EPID_PROVISION_PERFORM_BUFFER;
-
-#define EPID_PROVISION_PERFORM_PAYLOAD_SIZE (EPID_CERTIFICATE_SIZE + EPID_GROUP_PUBLIC_KEY_SIZE)
-
-#define ME_FPF_PROTOCOL_GUID \
-  { 0x3893448C, 0xEAB6, 0x4F4C, { 0xB2, 0x3C, 0x57, 0xC2, 0xC4, 0x65, 0x8D, 0xFC } }
-
-extern EFI_GUID gMeFpfProtocolGuid;
 
 #pragma pack()
 

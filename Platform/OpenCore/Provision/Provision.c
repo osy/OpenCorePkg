@@ -14,6 +14,8 @@
 #include <Library/BaseLib.h>
 #include <Library/BaseMemoryLib.h>
 #include <Library/MemoryAllocationLib.h>
+#include <Library/PciLib.h>
+#include <Library/HobLib.h>
 #include <Guid/GlobalVariable.h>
 #include <OpenCore.h>
 
@@ -22,6 +24,7 @@
 #include <Protocol/Heci.h>
 #include <IndustryStandard/AppleProvisioning.h>
 #include <IndustryStandard/HeciMsg.h>
+#include <IndustryStandard/HeciClientMsg.h>
 
 STATIC UINT8 mCurrentMeClientRequestedReceiveMsg;
 STATIC UINT8 mCurrentMeClientCanReceiveMsg;
@@ -124,8 +127,8 @@ ReadProvisioningDataFile (
 STATIC
 EFI_STATUS
 ReadProvisioningData (
-  OUT VOID   **EpidCertificate,
-  OUT VOID   **EpidGroupPublicKeys,
+  OUT EPID_CERTIFICATE       **EpidCertificate,
+  OUT EPID_GROUP_PUBLIC_KEY  **EpidGroupPublicKeys,
   OUT UINT32 *EpidGroupPublicKeysCount
   )
 {
@@ -135,7 +138,7 @@ ReadProvisioningData (
 
   Status = ReadProvisioningDataFile (
     &gAppleEpidCertificateFileGuid,
-    EpidCertificate,
+    (VOID **) EpidCertificate,
     &EpidCertificateSize
     );
 
@@ -145,7 +148,7 @@ ReadProvisioningData (
 
   Status = ReadProvisioningDataFile (
     &gAppleEpidGroupPublicKeysFileGuid,
-    EpidGroupPublicKeys,
+    (VOID **) EpidGroupPublicKeys,
     &EpidGroupPublicKeysSize
     );
 
@@ -496,20 +499,20 @@ HeciSendMessagePerClient (
 // Note: ready
 STATIC
 EFI_STATUS
-HeciEpidRequestProvisioning (
+HeciPavpRequestProvisioning (
   OUT UINT32  *EpidStatus,
-  OUT UINT32  *EpidKey
+  OUT UINT32  *EpidGroupId
   )
 {
-  EFI_STATUS                     Status;
-  EPID_PROVISION_REQUEST_BUFFER  Command;
+  EFI_STATUS                        Status;
+  ME_PAVP_PROVISION_REQUEST_BUFFER  Command;
 
   OC_STATIC_ASSERT (sizeof (Command.Request) == 16, "Invalid ME command size");
   OC_STATIC_ASSERT (sizeof (Command.Response) == 24, "Invalid ME command size");
 
   ZeroMem (&Command, sizeof (Command));
-  Command.Request.Command    = EPID_PROVISION_COMMAND;
-  Command.Request.Subcommand = EPID_PROVISION_REQUEST_SUBCOMMAND;
+  Command.Request.Header.Version = ME_PAVP_PROTOCOL_VERSION;
+  Command.Request.Header.Command = ME_PAVP_PROVISION_REQUEST_COMMAND;
   HeciSendMessagePerClient (&Command, sizeof (Command.Request));
 
   ZeroMem (&Command, sizeof (Command));
@@ -517,7 +520,7 @@ HeciEpidRequestProvisioning (
 
   if (!EFI_ERROR (Status)) {
     *EpidStatus  = Command.Response.Status;
-    *EpidKey     = Command.Response.Key;
+    *EpidGroupId = Command.Response.GroupId;
   }
 
   return Status;
@@ -547,26 +550,21 @@ SetProvisioningVariable (
 // Note: ready
 STATIC
 EFI_STATUS
-GetProvisioningKey (
-  IN  VOID    *PublicKeys,
-  IN  UINTN   PublicKeyCount,
-  IN  UINT32  Key,
-  OUT VOID    **ChosenPublicKey
+GetGroupPublicKey (
+  IN  EPID_GROUP_PUBLIC_KEY  *PublicKeys,
+  IN  UINTN                  PublicKeyCount,
+  IN  UINT32                 Key,
+  OUT EPID_GROUP_PUBLIC_KEY  **ChosenPublicKey
   )
 {
   EFI_STATUS  Status;
   UINT32      Index;
-  UINT32      ThisKey;
-  UINT8       *ThisCertificate;
 
   Status = EFI_NOT_FOUND;
 
   for (Index = 0; Index < PublicKeyCount; ++Index) {
-    ThisCertificate = (UINT8 *) PublicKeys + EPID_GROUP_PUBLIC_KEY_SIZE * Index;
-    ThisKey         = *(UINT32 *) (ThisCertificate + sizeof (UINT32));
-
-    if (SwapBytes32(ThisKey) == Key) {
-      *ChosenPublicKey = ThisCertificate;
+    if (SwapBytes32 (PublicKeys[Index].GroupId) == Key) {
+      *ChosenPublicKey = &PublicKeys[Index];
       return EFI_SUCCESS;
     }
   }
@@ -577,23 +575,23 @@ GetProvisioningKey (
 // Note: ready
 STATIC
 EFI_STATUS
-HeciEpidPerformProvisioning (
-  IN VOID *EpidCertificate,
-  IN VOID *EpidGroupPublicKey
+HeciPavpPerformProvisioning (
+  IN EPID_CERTIFICATE       *EpidCertificate,
+  IN EPID_GROUP_PUBLIC_KEY  *EpidGroupPublicKey
   )
 {
-  EFI_STATUS                     Status;
-  EPID_PROVISION_PERFORM_BUFFER  Command;
-  UINTN                          Index;
+  EFI_STATUS                        Status;
+  ME_PAVP_PROVISION_PERFORM_BUFFER  Command;
+  UINTN                             Index;
 
   OC_STATIC_ASSERT (sizeof (Command.Request) == 1284, "Invalid ME command size");
   OC_STATIC_ASSERT (sizeof (Command.Response) == 16, "Invalid ME command size");
 
 
   ZeroMem (&Command, sizeof (Command));
-  Command.Request.Command     = EPID_PROVISION_COMMAND;
-  Command.Request.Subcommand  = EPID_PROVISION_PERFORM_SUBCOMMAND;
-  Command.Request.PayloadSize = EPID_PROVISION_PERFORM_PAYLOAD_SIZE;
+  Command.Request.Header.Version     = ME_PAVP_PROTOCOL_VERSION;
+  Command.Request.Header.Command     = ME_PAVP_PROVISION_PERFORM_COMMAND;
+  Command.Request.Header.PayloadSize = ME_PAVP_PROVISION_PERFORM_PAYLOAD_SIZE;
   CopyMem (&Command.Request.Certificate, EpidCertificate, sizeof (Command.Request.Certificate));
   CopyMem (&Command.Request.PublicKey, EpidGroupPublicKey, sizeof (Command.Request.PublicKey));
 
@@ -614,7 +612,7 @@ HeciEpidPerformProvisioning (
   DEBUG ((
     DEBUG_INFO,
     "OC: Finished provisioning command with status %x - %r\n",
-    Command.Response.Status,
+    Command.Response.Header.Status,
     Status
     ));
 
@@ -622,12 +620,62 @@ HeciEpidPerformProvisioning (
     return EFI_DEVICE_ERROR;
   }
 
-  if (Command.Response.Status != EPID_STATUS_PROVISIONED) {
+  if (Command.Response.Header.Status != EPID_STATUS_PROVISIONED) {
     Status = EFI_DEVICE_ERROR;
   }
 
-  if (Command.Response.Status == EPID_STATUS_FAIL_PROVISION) {
+  if (Command.Response.Header.Status == EPID_STATUS_FAIL_PROVISION) {
     SetProvisioningVariable (APPLE_EPID_PROVISIONED_VARIABLE_NAME, 1);
+  }
+
+  return Status;
+}
+
+STATIC
+EFI_STATUS
+HeciFpfGetStatus (
+  OUT  UINT32 *FpfStatus
+  )
+{
+  EFI_STATUS  Status;
+  UINT32      Response[11];
+  UINT32      Request[4];
+
+  ZeroMem (Request, sizeof (Request));
+  Request[0] = 3;
+  HeciSendMessagePerClient (Request, sizeof (Request));
+
+  ZeroMem (Response, sizeof (Response));
+  Status = HeciGetResponse (Response, sizeof (Response));
+
+  if (!EFI_ERROR (Status)) {
+    *FpfStatus = Response[1];
+  }
+
+  return Status;
+}
+
+STATIC
+EFI_STATUS
+HeciFpfProvision (
+  OUT  UINT32 *FpfStatus
+  )
+{
+  EFI_STATUS Status;
+  UINT32     Response[2];
+  UINT32     Request[3];
+
+  ZeroMem (Request, sizeof (Request));
+  Request[0] = 5;
+  Request[1] = 1;
+  Request[2] = 255;
+  HeciSendMessagePerClient (Request, sizeof (Request));
+
+  ZeroMem (Response, sizeof (Response));
+  Status = HeciGetResponse (Response, sizeof (Response));
+
+  if (!EFI_ERROR (Status)) {
+    *FpfStatus = Response[1];
   }
 
   return Status;
@@ -753,26 +801,66 @@ NeedsEpidProvisioning (
   return EFI_NOT_FOUND;
 }
 
+// Note: ready
 STATIC
 EFI_STATUS
-OcHandleEpidProvisioning (
+NeedsFpfProvisioning (
+  VOID
+  )
+{
+  EFI_STATUS               Status;
+  UINT32                   Data;
+  UINTN                    DataSize;
+  APPLE_PLATFORM_INFO_HOB  *Hob;
+
+#if 0
+  Hob = GetFirstGuidHob (&gApplePlatformInfoHobGuid);
+#else
+  Hob = NULL; // On newer Macs this is not present anyway.
+#endif
+
+  DEBUG ((DEBUG_INFO, "OC: HOB for FPF is %p\n", Hob));
+
+  if (Hob == NULL || Hob->FpfProvisioned) {
+    DataSize = sizeof (Data);
+    Status = gRT->GetVariable (
+      APPLE_FPF_PROVISIONED_VARIABLE_NAME,
+      &gEfiGlobalVariableGuid,
+      NULL,
+      &DataSize,
+      &Data
+      );
+
+    if (EFI_ERROR (Status) || Data != 1) {
+      return EFI_SUCCESS;
+    }
+
+    return EFI_NOT_FOUND;
+  }
+
+  return EFI_UNSUPPORTED;
+}
+
+STATIC
+EFI_STATUS
+OcPerformEpidProvisioning (
   VOID
   )
 {
   EFI_STATUS              Status;
   UINTN                   Index;
   HECI_CLIENT_PROPERTIES  Properties;
-  VOID                    *EpidGroupPublicKeys;
-  VOID                    *EpidCertificate;
+  EPID_GROUP_PUBLIC_KEY   *EpidGroupPublicKeys;
+  EPID_CERTIFICATE        *EpidCertificate;
   UINT32                  EpidGroupPublicKeysCount;
   UINT32                  EpidStatus;
-  UINT32                  EpidKey;
-  VOID                    *EpidCurrentGroupPublicKey;
+  UINT32                  EpidGroupId;
+  EPID_GROUP_PUBLIC_KEY   *EpidCurrentGroupPublicKey;
 
   Status = NeedsEpidProvisioning ();
   DEBUG ((DEBUG_INFO, "OC: Needs provisioning EPID - %r\n", Status));
   if (EFI_ERROR (Status)) {
-    return Status;
+    return EFI_ALREADY_STARTED;
   }
 
   Status = HeciLocateProtocol ();
@@ -821,7 +909,7 @@ OcHandleEpidProvisioning (
       break;
     }
 
-    if (CompareGuid (&Properties.ProtocolName, &gMeEpidProtocolGuid)) {
+    if (CompareGuid (&Properties.ProtocolName, &gMePavpProtocolGuid)) {
       break;
     }
   }
@@ -832,10 +920,10 @@ OcHandleEpidProvisioning (
     Status = HeciConnectToClient (mMeClientMap[Index]);
     if (!EFI_ERROR (Status)) {
 
-      EpidStatus = EpidKey = 0;
-      Status = HeciEpidRequestProvisioning (&EpidStatus, &EpidKey);
+      EpidStatus = EpidGroupId = 0;
+      Status = HeciPavpRequestProvisioning (&EpidStatus, &EpidGroupId);
 
-      DEBUG ((DEBUG_INFO, "OC: Got EPID status %X and key %x - %r\n", EpidStatus, EpidKey, Status));
+      DEBUG ((DEBUG_INFO, "OC: Got EPID status %X and group id %x - %r\n", EpidStatus, EpidGroupId, Status));
     }
 
     if (!EFI_ERROR (Status)) {
@@ -843,17 +931,17 @@ OcHandleEpidProvisioning (
       if (EpidStatus == EPID_STATUS_PROVISIONED) {
         SetProvisioningVariable (APPLE_EPID_PROVISIONED_VARIABLE_NAME, 1);
       } else if (EpidStatus == EPID_STATUS_CAN_PROVISION) {
-        Status = GetProvisioningKey (
+        Status = GetGroupPublicKey (
           EpidGroupPublicKeys,
           EpidGroupPublicKeysCount,
-          EpidKey,
+          EpidGroupId,
           &EpidCurrentGroupPublicKey
           );
 
         DEBUG ((DEBUG_INFO, "OC: Got EPID group public key - %r\n", Status));
 
         if (!EFI_ERROR (Status)) {
-          Status = HeciEpidPerformProvisioning (EpidCertificate, EpidCurrentGroupPublicKey);
+          Status = HeciPavpPerformProvisioning (EpidCertificate, EpidCurrentGroupPublicKey);
           DEBUG ((DEBUG_INFO, "OC: Sent EPID certificate - %r\n", Status));
           if (!EFI_ERROR (Status)) {
             SetProvisioningVariable (APPLE_EPID_PROVISIONED_VARIABLE_NAME, 1);
@@ -883,8 +971,107 @@ OcHandleEpidProvisioning (
   return Status;
 }
 
+STATIC
+EFI_STATUS
+OcPerformFpfProvisioning (
+  VOID
+  )
+{
+  EFI_STATUS              Status;
+  UINTN                   Index;
+  HECI_CLIENT_PROPERTIES  Properties;
+  UINT32                  FpfStatus;
+
+  Status = NeedsFpfProvisioning ();
+  DEBUG ((DEBUG_INFO, "OC: Needs provisioning FPF - %r\n", Status));
+  if (EFI_ERROR (Status)) {
+    return EFI_ALREADY_STARTED;
+  }
+
+  Status = HeciLocateProtocol ();
+  DEBUG ((DEBUG_INFO, "OC: HECI protocol lookup - %r\n", Status));
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  //
+  // Get Management Engine proccesses namespace.
+  // Each App like PAVP or FPF have unique identifier represented as GUID.
+  //
+  Status = HeciGetClientMap (mMeClientMap, &mMeClientActiveCount);
+  DEBUG ((DEBUG_INFO, "OC: Got %d clients - %r\n", mMeClientActiveCount, Status));
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  Status = EFI_NOT_FOUND;
+
+  for (Index = 0; Index < mMeClientActiveCount; ++Index) {
+    Status = HeciGetClientProperties (
+      mMeClientMap[Index],
+      &Properties
+      );
+
+    DEBUG ((
+      DEBUG_INFO,
+      "OC: Client %u has %g protocol - %r\n",
+      (UINT32) Index,
+      Properties.ProtocolName,
+      Status
+      ));
+
+    if (EFI_ERROR (Status)) {
+      break;
+    }
+
+    if (CompareGuid (&Properties.ProtocolName, &gMeFpfProtocolGuid)) {
+      break;
+    }
+  }
+
+  if (!EFI_ERROR (Status) && Index != mMeClientActiveCount) {
+    DEBUG ((DEBUG_INFO, "OC: Found application at %u\n", (UINT32) Index));
+
+    Status = HeciConnectToClient (mMeClientMap[Index]);
+
+    if (!EFI_ERROR (Status)) {
+      Status = HeciFpfGetStatus (&FpfStatus);
+      DEBUG ((DEBUG_INFO, "OC: Got FPF status %u - %r\n", FpfStatus, Status));
+      if (!EFI_ERROR (Status)) {
+        if (FpfStatus == 250) {
+          Status = HeciFpfProvision (&FpfStatus);
+          DEBUG ((DEBUG_INFO, "OC: Got FPF provisioning %u - %r\n", FpfStatus, Status));
+          if (!EFI_ERROR (Status) && FpfStatus == 0) {
+            SetProvisioningVariable (APPLE_FPF_PROVISIONED_VARIABLE_NAME, 1);
+          } else {
+            Status = EFI_DEVICE_ERROR;
+          }
+        } else {
+          Status = EFI_DEVICE_ERROR;
+        }
+      }
+
+      HeciDisconnectFromClients ();
+    }
+  } else {
+    DEBUG ((DEBUG_INFO, "OC: No FPF application found\n"));
+
+    if (Index == mMeClientActiveCount) {
+      //
+      // Do not retry provisioning on incompatible firmware.
+      // TODO: Do we really need this?
+      //
+      SetProvisioningVariable (APPLE_FPF_PROVISIONED_VARIABLE_NAME, 1);
+      Status = EFI_NOT_FOUND;
+    }
+  }
+
+  return Status;
+}
+
+
 VOID
-OcPerformEpidProvisioning (
+OcPerformProvisioning (
   VOID
   )
 {
@@ -892,7 +1079,13 @@ OcPerformEpidProvisioning (
 
   DEBUG ((DEBUG_INFO, "OC: Starting EPID provisioning\n"));
 
-  Status = OcHandleEpidProvisioning ();
+  Status = OcPerformEpidProvisioning ();
 
   DEBUG ((DEBUG_INFO, "OC: Done EPID provisioning - %r\n", Status));
+
+  DEBUG ((DEBUG_INFO, "OC: Starting FPF provisioning\n"));
+
+  Status = OcPerformFpfProvisioning ();
+
+  DEBUG ((DEBUG_INFO, "OC: Done FPF provisioning - %r\n", Status));
 }

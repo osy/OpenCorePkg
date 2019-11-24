@@ -270,10 +270,10 @@ OcMiscUefiQuirksLoaded (
   );
 
 /**
-  Load EPID provisioning support.
+  Load provisioning support.
 **/
 VOID
-OcPerformEpidProvisioning (
+OcPerformProvisioning (
   VOID
   );
 

@@ -37,8 +37,8 @@
 [Sources]
   OpenCore.c
   OpenCoreAcpi.c
-  Provision/Epid.c
-  Provision/EpidData.c
+  Provision/Provision.c
+  Provision/ProvisionData.c
   OpenCoreDevProps.c
   OpenCoreKernel.c
   OpenCoreMisc.c
@@ -60,7 +60,8 @@
   gOcVendorVariableGuid
   gAppleEpidCertificateFileGuid
   gAppleEpidGroupPublicKeysFileGuid
-  gMeEpidProtocolGuid
+  gApplePlatformInfoHobGuid
+  gMePavpProtocolGuid
   gMeFpfProtocolGuid
 
 [Protocols]
