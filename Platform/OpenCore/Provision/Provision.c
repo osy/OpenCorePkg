@@ -841,7 +841,6 @@ NeedsFpfProvisioning (
   return EFI_UNSUPPORTED;
 }
 
-STATIC
 EFI_STATUS
 OcPerformEpidProvisioning (
   VOID
@@ -971,7 +970,6 @@ OcPerformEpidProvisioning (
   return Status;
 }
 
-STATIC
 EFI_STATUS
 OcPerformFpfProvisioning (
   VOID
@@ -1034,6 +1032,10 @@ OcPerformFpfProvisioning (
 
     Status = HeciConnectToClient (mMeClientMap[Index]);
 
+    //
+    // I *think* FPF provisioning locks fuses from further update.
+    // For this reason we do not want it.
+    //
     if (!EFI_ERROR (Status)) {
       Status = HeciFpfGetStatus (&FpfStatus);
       DEBUG ((DEBUG_INFO, "OC: Got FPF status %u - %r\n", FpfStatus, Status));
@@ -1083,9 +1085,11 @@ OcPerformProvisioning (
 
   DEBUG ((DEBUG_INFO, "OC: Done EPID provisioning - %r\n", Status));
 
+#if 0
   DEBUG ((DEBUG_INFO, "OC: Starting FPF provisioning\n"));
 
   Status = OcPerformFpfProvisioning ();
 
   DEBUG ((DEBUG_INFO, "OC: Done FPF provisioning - %r\n", Status));
+#endif
 }
