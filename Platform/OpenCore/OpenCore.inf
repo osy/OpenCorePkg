@@ -72,6 +72,7 @@
   gOcBootstrapProtocolGuid            ## CONSUMES
   gOcInterfaceProtocolGuid            ## SOMETIMES_CONSUMES
   gEfiHeciProtocolGuid                ## SOMETIMES_CONSUMES
+  gEfiHeci2ProtocolGuid               ## SOMETIMES_CONSUMES
 
 [LibraryClasses]
   DevicePathLib

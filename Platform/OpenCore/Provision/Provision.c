@@ -23,6 +23,7 @@
 #include <Library/OcMiscLib.h>
 
 #include <Protocol/Heci.h>
+#include <Protocol/Heci2.h>
 #include <IndustryStandard/AppleProvisioning.h>
 #include <IndustryStandard/HeciMsg.h>
 #include <IndustryStandard/HeciClientMsg.h>
@@ -36,9 +37,66 @@ STATIC UINT8 mCurrentMeClientAddress;
 STATIC UINT8 mMeClientMap[HBM_ME_CLIENT_MAX];
 STATIC UINT8 mMeClientActiveCount;
 STATIC EFI_HECI_PROTOCOL *mHeci;
+STATIC EFI_HECI2_PROTOCOL *mHeci2;
 STATIC BOOLEAN mSendingHeciCommand;
 STATIC BOOLEAN mSendingHeciCommandPerClient;
 
+STATIC
+EFI_STATUS
+HeciReadMessage (
+  IN      UINT32           Blocking,
+  IN      UINT32           *MessageBody,
+  IN OUT  UINT32           *Length
+  )
+{
+  if (mHeci) {
+    return mHeci->ReadMsg (
+      Blocking,
+      MessageBody,
+      Length
+      );
+  } else if (mHeci2) {
+    return mHeci2->ReadMsg (
+      HECI_DEFAULT_DEVICE,
+      Blocking,
+      MessageBody,
+      Length
+      );
+  } else {
+    DEBUG ((DEBUG_INFO, "OC: No ME protocol loaded, cannot read message\n"));
+    return EFI_NOT_FOUND;
+  }
+}
+
+STATIC
+EFI_STATUS
+HeciSendMessage (
+  IN      UINT32           *Message,
+  IN      UINT32           Length,
+  IN      UINT8            HostAddress,
+  IN      UINT8            MEAddress
+  )
+{
+  if (mHeci) {
+    return mHeci->SendMsg (
+      Message,
+      Length,
+      HostAddress,
+      MEAddress
+      );
+  } else if (mHeci2) {
+    return mHeci2->SendMsg (
+      HECI_DEFAULT_DEVICE,
+      Message,
+      Length,
+      HostAddress,
+      MEAddress
+      );
+  } else {
+    DEBUG ((DEBUG_INFO, "OC: No ME protocol loaded, cannot send message\n"));
+    return EFI_NOT_FOUND;
+  }
+}
 
 // Note: ready
 STATIC
@@ -191,6 +249,16 @@ HeciLocateProtocol (
     );
 
   if (EFI_ERROR (Status)) {
+    // newer chips use a different GUID
+    mHeci = NULL; // ensure we don't have both set
+    Status = gBS->LocateProtocol (
+      &gEfiHeci2ProtocolGuid,
+      NULL,
+      (VOID **) &mHeci2
+      );
+  }
+
+  if (EFI_ERROR (Status)) {
     DEBUG ((DEBUG_INFO, "OC: Failed to find HECI protocol - %r\n", Status));
   }
 
@@ -211,7 +279,7 @@ HeciUpdateReceiveMsgStatus (
   if (mSendingHeciCommandPerClient) {
     ZeroMem (&Command, sizeof (Command));
     Size = sizeof (Command);
-    Status = mHeci->ReadMsg (
+    Status = HeciReadMessage (
       BLOCKING,
       (UINT32 *) &Command,
       &Size
@@ -256,7 +324,7 @@ HeciGetResponse (
         Command.MeAddress              = mCurrentMeClientAddress;
         Command.HostAddress            = HBM_CLIENT_ADDRESS;
 
-        Status = mHeci->SendMsg (
+        Status = HeciSendMessage (
           (UINT32 *) &Command,
           sizeof (Command),
           HBM_HOST_ADDRESS,
@@ -269,7 +337,7 @@ HeciGetResponse (
       }
     }
 
-    Status = mHeci->ReadMsg (
+    Status = HeciReadMessage (
       BLOCKING,
       MessageData,
       &ResponseSize
@@ -301,7 +369,7 @@ HeciSendMessageWithResponse (
   Message = (HECI_BUS_MESSAGE *) MessageData;
   Command = Message->Command;
 
-  Status = mHeci->SendMsg (
+  Status = HeciSendMessage (
     MessageData,
     RequestSize,
     HBM_HOST_ADDRESS,
@@ -484,7 +552,7 @@ HeciSendMessagePerClient (
       HeciUpdateReceiveMsgStatus();
     }
 
-    Status = mHeci->SendMsg (
+    Status = HeciSendMessage (
       Message,
       Size,
       HBM_CLIENT_ADDRESS,
