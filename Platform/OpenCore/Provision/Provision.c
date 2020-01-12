@@ -765,7 +765,12 @@ HeciDisconnectFromClients (
   Status = EFI_SUCCESS;
 
   if (mSendingHeciCommandPerClient) {
-    OC_STATIC_ASSERT (sizeof (Command) == 4, "Invalid ME command size");
+    OC_STATIC_ASSERT (sizeof (Command.Request) == 4, "Invalid ME command req size");
+    OC_STATIC_ASSERT (sizeof (Command.Response) == 8, "Invalid ME command rsp size");
+
+    if (!mCurrentMeClientCanReceiveMsg) {
+      HeciUpdateReceiveMsgStatus();
+    }
 
     ZeroMem (&Command, sizeof (Command));
 

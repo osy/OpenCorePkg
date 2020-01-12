@@ -222,6 +222,7 @@ typedef struct {
   UINT8       MeAddress;
   UINT8       HostAddress;
   UINT8       Status;
+  UINT32      Reserved;
 } HBM_CLIENT_DISCONNECT_RESPONSE;
 
 typedef union {
