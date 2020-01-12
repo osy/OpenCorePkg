@@ -301,7 +301,6 @@ HeciGetResponse (
 {
   EFI_STATUS        Status;
   HBM_FLOW_CONTROL  Command;
-  BOOLEAN           SendingPerClient;
 
   Status = EFI_NOT_READY;
 
@@ -310,30 +309,21 @@ HeciGetResponse (
   if (mSendingHeciCommandPerClient || mSendingHeciCommand) {
     ZeroMem (MessageData, ResponseSize);
 
-    SendingPerClient = mSendingHeciCommandPerClient;
-    if (mSendingHeciCommandPerClient && !mCurrentMeClientCanReceiveMsg) {
-      HeciUpdateReceiveMsgStatus ();
-      // FIXME: This looks broken to me.
-      SendingPerClient = mSendingHeciCommandPerClient;
-    }
+    if (!mCurrentMeClientRequestedReceiveMsg) {
+      ZeroMem (&Command, sizeof (Command));
+      Command.Command.Fields.Command = FLOW_CONTROL;
+      Command.MeAddress              = mCurrentMeClientAddress;
+      Command.HostAddress            = HBM_CLIENT_ADDRESS;
 
-    if (SendingPerClient) {
-      if (!mCurrentMeClientRequestedReceiveMsg) {
-        ZeroMem (&Command, sizeof (Command));
-        Command.Command.Fields.Command = FLOW_CONTROL;
-        Command.MeAddress              = mCurrentMeClientAddress;
-        Command.HostAddress            = HBM_CLIENT_ADDRESS;
+      Status = HeciSendMessage (
+        (UINT32 *) &Command,
+        sizeof (Command),
+        HBM_HOST_ADDRESS,
+        HBM_ME_ADDRESS
+        );
 
-        Status = HeciSendMessage (
-          (UINT32 *) &Command,
-          sizeof (Command),
-          HBM_HOST_ADDRESS,
-          HBM_ME_ADDRESS
-          );
-
-        if (!EFI_ERROR (Status)) {
-          ++mCurrentMeClientRequestedReceiveMsg;
-        }
+      if (!EFI_ERROR (Status)) {
+        ++mCurrentMeClientRequestedReceiveMsg;
       }
     }
 
